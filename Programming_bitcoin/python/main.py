@@ -1,1 +1,1 @@
-from FiniteElement import FiniteElement
+from finite_element import FiniteElement
