@@ -1,0 +1,6 @@
+/target
+*.swp
+/docs/fidelity_bonds.md
+Cargo.lock
+*/temp-files
+.vscode
