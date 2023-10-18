@@ -36,12 +36,15 @@ class FiniteElement:
         return self.__class__((self.num*other.num) % self.prime, self.prime)
 
     def __pow__(self, exponent):
-        return self.__class__(pow(self.num, exponent % (self.prime-1), self.prime))
+        return self.__class__(pow(self.num, exponent % (self.prime-1), self.prime), self.prime)
 
     def __truediv__(self, other):
         if self.prime != other.prime:
             raise TypeError('Cannot divide two numbers with different field')
-        return self.__class__((self.num*pow(other.num, self.prime-2, self.prime) % self.prime, self.prime))
+        return self.__class__(self.num*pow(other.num, self.prime-2, self.prime) % self.prime, self.prime)
+
+    def __rmul__(self, coefficient):
+        return self.__class__((self.num*coefficient) % self.prime, self.prime)
 
 
 if __name__ == "__main__":

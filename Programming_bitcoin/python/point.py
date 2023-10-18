@@ -6,6 +6,10 @@ class Point:
         self.y = y
         if self.x is None and self.y is None:
             return
+        print(self.y)
+        print(self.x)
+        print(self.a)
+        print(self.b)
         if self.y**2 != self.x**3+a*self.x+b:
             raise ValueError(f"({self.x} {self.y}) is not on the curve")
 
@@ -30,7 +34,7 @@ class Point:
             x3 = slope*slope-self.x-other.x
             y3 = slope*(self.x-x3)-self.y
             return self.__class__(x3, y3, self.a, self.b)
-        if other == self and self.y == 0:
+        if other == self and self.y == 0*self.x:
             return self.__class__(None, None, self.a, self.b)
         if other.x == self.x and self.y == other.y:
             slope = (3*self.x*self.x+self.a)/(2*self.y)
@@ -42,6 +46,21 @@ class Point:
         if self.x != None:
             return f"Point({self.x},{self.y})_{self.a}_{self.b}"
         return f"Point(infinity)"
+
+    def __rmul__(self, coefficient):
+        # Binary Expansion
+        current = self
+        result = self.__class__(None, None, self.a, self.b)
+        while coefficient:
+            if coefficient & 1:
+                result += current
+            current += current
+            coefficient >>= 1
+        return result
+        # result = self.__class__(None, None, self.a, self.b)
+        # for _ in range(coefficient):
+        #     result += self
+        # return result
 
 
 def on_curve(x, y):
