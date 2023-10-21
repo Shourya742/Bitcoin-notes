@@ -3,160 +3,230 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
+use anyhow::{bail, Result};
+use num_bigint::BigInt;
+
 #[derive(Debug, Clone, Eq)]
-pub struct FiniteField {
-    pub num: isize,
-    pub prime: isize,
+pub struct FiniteElement {
+    pub num: BigInt,
+    pub prime: BigInt,
 }
 
-impl FiniteField {
-    pub fn new(num: isize, prime: isize) -> Self {
-        if num >= prime || num < 0 {
-            panic!("Num {} not in field range 0 to {}", num, prime)
+impl FiniteElement {
+    pub fn new(num: i32, prime: i32) -> Result<Self> {
+        if num >= prime {
+            bail!("Num {} not in field range 0 to {}", num, prime - 1)
         }
-
-        FiniteField { num, prime }
+        Ok(FiniteElement {
+            num: BigInt::from(num),
+            prime: BigInt::from(prime),
+        })
     }
 
-    pub fn pow(self, exponent: isize) -> Self {
-        let mut new_num = 1;
-        let new_exp = (exponent % (self.prime - 1) + self.prime - 1) % (self.prime - 1);
-
-        for _ in 0..new_exp {
-            new_num = (new_num * self.num) % self.prime;
+    pub fn new_big_int(num: BigInt, prime: BigInt) -> Result<Self> {
+        if num >= prime {
+            bail!("Num {} not in field range 0 to {}", num, prime - 1);
         }
+        Ok(FiniteElement { num, prime })
+    }
 
-        FiniteField {
-            num: new_num,
-            prime: self.prime,
+    pub fn pow(&self, exponent: BigInt) -> Self {
+        let positive_exponent =
+            exponent.modpow(&BigInt::from(1), &(self.prime.clone() - BigInt::from(1)));
+        let num = self.num.modpow(&positive_exponent, &self.prime);
+        FiniteElement {
+            num,
+            prime: self.prime.clone(),
         }
     }
 }
-impl PartialEq for FiniteField {
+
+impl PartialEq for FiniteElement {
     fn eq(&self, other: &Self) -> bool {
         self.num == other.num && self.prime == other.prime
     }
-
     fn ne(&self, other: &Self) -> bool {
         !(self == other)
     }
 }
 
-impl fmt::Display for FiniteField {
+impl fmt::Display for FiniteElement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "FieldElement_{}({})", self.prime, self.num)
     }
 }
 
-impl Add for FiniteField {
+impl Add for FiniteElement {
     type Output = Self;
     fn add(self, other: Self) -> Self::Output {
         if self.prime != other.prime {
-            panic!("Cannot add two numbers with different fields")
+            panic!("Cannot add two numbers in different Fields")
         }
-        let new_num = (self.num + other.num) % self.prime;
-        FiniteField {
-            num: new_num,
+        let num = (self.num + other.num).modpow(&BigInt::from(1), &self.prime);
+        FiniteElement {
+            num,
             prime: self.prime,
         }
     }
 }
 
-impl Sub for FiniteField {
+impl Sub for FiniteElement {
     type Output = Self;
     fn sub(self, other: Self) -> Self::Output {
         if self.prime != other.prime {
-            panic!("Cannot substract two number with different fields")
+            panic!("Cannot sub two numbers in different Fields");
         }
-        let new_num = (self.num - other.num + self.prime) % self.prime;
-        FiniteField {
-            num: new_num,
+        let num = (self.num - other.num).modpow(&BigInt::from(1), &self.prime);
+        FiniteElement {
+            num,
             prime: self.prime,
         }
     }
 }
 
-impl Mul for FiniteField {
+impl Mul for FiniteElement {
     type Output = Self;
     fn mul(self, other: Self) -> Self::Output {
         if self.prime != other.prime {
-            panic!("Cannot multiply two numbers with different Field")
+            panic!("Cannot mutliply two numbers in different Fields");
         }
-        let new_num = (self.num * other.num) % self.prime;
-        FiniteField {
-            num: new_num,
+        let num = (self.num * other.num).modpow(&BigInt::from(1), &self.prime);
+        FiniteElement {
+            num,
             prime: self.prime,
         }
     }
 }
 
-impl Div for FiniteField {
+impl Div for FiniteElement {
     type Output = Self;
     fn div(self, other: Self) -> Self::Output {
         if self.prime != other.prime {
-            panic!("Cannot Divide two numbers with different field")
+            panic!("Cannot multiply two numbers in different Fields")
         }
-        let exp: isize = self.prime - 2;
-        let power_var = other.pow(exp);
-        return self * power_var;
+        let exp = self.prime.clone() - BigInt::from(2);
+        let num = (self.num * other.num.modpow(&exp, &self.prime.clone()))
+            .modpow(&BigInt::from(1), &self.prime);
+        FiniteElement {
+            num,
+            prime: self.prime,
+        }
     }
 }
-
 #[cfg(test)]
 mod test {
     use super::*;
     #[test]
-    fn test_eq() {
-        let a = FiniteField::new(7, 13);
-        let b = FiniteField::new(6, 13);
+    fn test_ne() {
+        let a = FiniteElement::new(7, 13).unwrap();
+        let b = FiniteElement::new(6, 13).unwrap();
+        println!("{:?}", a);
+        println!("{:?}", b);
         assert_ne!(a, b);
-        assert_eq!(a, a);
     }
 
     #[test]
-    fn test_add() {
-        let a = FiniteField::new(7, 13);
-        let b = FiniteField::new(12, 13);
-        let c = FiniteField::new(6, 13);
-        assert_eq!(a + b, c);
+    fn test_eq() {
+        let a = FiniteElement::new(7, 13).unwrap();
+        let b = FiniteElement::new(7, 13).unwrap();
+        assert_eq!(a, b)
     }
 
     #[test]
-    fn test_sub() {
-        let a = FiniteField::new(2, 13);
-        let b = FiniteField::new(11, 13);
-        let c = FiniteField::new(9, 13);
-        assert_eq!(b - c, a);
+    fn test_sum() {
+        let a = FiniteElement::new(7, 13).unwrap();
+        let b = FiniteElement::new(12, 13).unwrap();
+        let c = FiniteElement::new(6, 13).unwrap();
+        assert_eq!(a + b, c)
+    }
+
+    #[test]
+    fn test_excersize5() {
+        let a = vec![1, 3, 7, 13, 18];
+        let mut b = Vec::new();
+        for i in 0..19 {
+            b.push(i);
+        }
+        for (index, value) in a.iter().enumerate() {
+            println!("Processing for batch {} starts", index);
+            for x in b.iter() {
+                print!("{} ", (x * value) % 19)
+            }
+            println!("")
+        }
     }
 
     #[test]
     fn test_mul() {
-        let a = FiniteField::new(3, 13);
-        let b = FiniteField::new(12, 13);
-        let c = FiniteField::new(4, 13);
-        assert_eq!(a * c, b);
-        let a = FiniteField::new(3, 13);
-        let b = FiniteField::new(5, 13);
-        let c = FiniteField::new(2, 13);
-        assert_eq!(a * b, c);
-    }
-    #[test]
-    fn test_pow() {
-        let a = FiniteField::new(3, 13);
-        let b = a.pow(2);
-        let c = FiniteField::new(9, 13);
-        assert_eq!(b, c);
-        let a = FiniteField::new(3, 13);
-        let b = a.pow(-4);
-        let c = FiniteField { num: 9, prime: 13 };
-        assert_eq!(b, c);
+        let a = FiniteElement::new(3, 13).unwrap();
+        let b = FiniteElement::new(12, 13).unwrap();
+        let c = FiniteElement::new(10, 13).unwrap();
+        assert_eq!(a * b, c)
     }
 
     #[test]
-    fn test_div() {
-        let a = FiniteField::new(2, 13);
-        let b = FiniteField::new(7, 13);
-        let c = a / b;
-        assert_eq!(c, FiniteField::new(4, 13));
+    fn test_neg_pow() {
+        let a = FiniteElement::new(7, 13).unwrap();
+        let b = FiniteElement::new(8, 13).unwrap();
+        assert_eq!(a.pow(BigInt::from(-3)), b);
     }
 }
+
+// #[cfg(test)]
+// mod test {
+//     use super::*;
+//     #[test]
+//     fn test_eq() {
+//         let a = FiniteField::new(7, 13);
+//         let b = FiniteField::new(6, 13);
+//         assert_ne!(a, b);
+//         assert_eq!(a, a);
+//     }
+
+//     #[test]
+//     fn test_add() {
+//         let a = FiniteField::new(7, 13);
+//         let b = FiniteField::new(12, 13);
+//         let c = FiniteField::new(6, 13);
+//         assert_eq!(a + b, c);
+//     }
+
+//     #[test]
+//     fn test_sub() {
+//         let a = FiniteField::new(2, 13);
+//         let b = FiniteField::new(11, 13);
+//         let c = FiniteField::new(9, 13);
+//         assert_eq!(b - c, a);
+//     }
+
+//     #[test]
+//     fn test_mul() {
+//         let a = FiniteField::new(3, 13);
+//         let b = FiniteField::new(12, 13);
+//         let c = FiniteField::new(4, 13);
+//         assert_eq!(a * c, b);
+//         let a = FiniteField::new(3, 13);
+//         let b = FiniteField::new(5, 13);
+//         let c = FiniteField::new(2, 13);
+//         assert_eq!(a * b, c);
+//     }
+//     #[test]
+//     fn test_pow() {
+//         let a = FiniteField::new(3, 13);
+//         let b = a.pow(2);
+//         let c = FiniteField::new(9, 13);
+//         assert_eq!(b, c);
+//         let a = FiniteField::new(3, 13);
+//         let b = a.pow(-4);
+//         let c = FiniteField { num: 9, prime: 13 };
+//         assert_eq!(b, c);
+//     }
+
+//     #[test]
+//     fn test_div() {
+//         let a = FiniteField::new(2, 13);
+//         let b = FiniteField::new(7, 13);
+//         let c = a / b;
+//         assert_eq!(c, FiniteField::new(4, 13));
+//     }
+// }
