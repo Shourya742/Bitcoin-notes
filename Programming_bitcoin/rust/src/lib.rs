@@ -1,5 +1,6 @@
 pub mod finite_field;
 pub mod finite_field_point;
+pub mod private_key;
 pub mod real_numbers_point;
 pub mod signature;
 use finite_field::FiniteElement;
@@ -34,7 +35,7 @@ impl S256Field {
 
 impl Display for S256Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:x}", self.field.num)
+        write!(f, "{:#064x}", self.field.num)
     }
 }
 
@@ -103,7 +104,11 @@ impl Mul<S256Point> for BigInt {
 mod secp256k1_test {
     use num_bigint::BigInt;
 
-    use crate::{signature::Signature, PointWrapper, S256Field, S256Point, G, N};
+    use crate::{
+        private_key::PrivateKey, signature::Signature, PointWrapper, S256Field, S256Point, G, N,
+    };
+    use hex_literal::hex;
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn s256_point_test() {
@@ -111,7 +116,7 @@ mod secp256k1_test {
     }
 
     #[test]
-    fn point_verification() {
+    fn point_verification_test() {
         let z: BigInt = BigInt::parse_bytes(
             b"bc62d4b80d9e36da29c16c5d4d9f11731f36052c72401a76c23c0fb5a9b74423",
             16,
@@ -141,5 +146,28 @@ mod secp256k1_test {
         let point = S256Point::new(S256Field::new(px), S256Field::new(py));
         let sig = Signature::new(r, s);
         assert!(point.verify(z, sig))
+    }
+
+    #[test]
+    fn point_sign_test() {
+        let sha256_z = Sha256::digest(Sha256::digest(b"Programming Bitcoin in Rust!"));
+        let e = BigInt::from(12345);
+        let z = BigInt::from_bytes_be(num_bigint::Sign::Plus, &sha256_z);
+        let p = PrivateKey::new(e);
+        let (public_x, public_y) = match p.point.clone().point {
+            PointWrapper::Inf => panic!("public key should not be point to infinity"),
+            PointWrapper::Point { x, y, a: _, b: _ } => (x, y),
+        };
+        let sig = p.sign(z.clone(), Some(BigInt::from(1234567890)));
+        assert_eq!(
+            public_x.num.to_bytes_be().1,
+            hex!("f01d6b9018ab421dd410404cb869072065522bf85734008f105cf385a023a80f")
+        );
+        assert_eq!(
+            public_y.num.to_bytes_be().1,
+            hex!("0eba29d0f0c5408ed681984dc525982abefccd9f7ff01dd26da4999cf3f6a295")
+        );
+
+        assert!(p.point.clone().verify(z, sig))
     }
 }
