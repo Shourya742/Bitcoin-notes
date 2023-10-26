@@ -1,4 +1,8 @@
-use std::{clone, fmt, ops::Add};
+use std::{
+    clone, fmt,
+    ops::{Add, Mul},
+    rc::Rc,
+};
 
 use num_bigint::BigInt;
 
@@ -146,6 +150,40 @@ impl Add for PointWrapper<FiniteElement> {
     }
 }
 
+impl Mul<PointWrapper<FiniteElement>> for i32 {
+    type Output = PointWrapper<FiniteElement>;
+    fn mul(self, rhs: PointWrapper<FiniteElement>) -> Self::Output {
+        let mut coef = self;
+        let mut current = rhs;
+        let mut result = PointWrapper::new_inf();
+        while coef > 0 {
+            if coef & 1 == 1 {
+                result = result + current.clone();
+            }
+            current = current.clone() + current;
+            coef >>= 1;
+        }
+        result
+    }
+}
+
+impl Mul<PointWrapper<FiniteElement>> for BigInt {
+    type Output = PointWrapper<FiniteElement>;
+    fn mul(self, rhs: PointWrapper<FiniteElement>) -> Self::Output {
+        let mut coef = Rc::new(self);
+        let mut current = rhs;
+        let mut result = PointWrapper::new_inf();
+        while coef.as_ref() > &BigInt::from(0) {
+            if coef.as_ref() & BigInt::from(1) == BigInt::from(1) {
+                result = result + current.clone();
+            }
+            current = current.clone() + current;
+            *Rc::get_mut(&mut coef).unwrap() >>= 1;
+        }
+        result
+    }
+}
+
 #[cfg(test)]
 mod point_finite_field_test {
     use crate::{finite_field::FiniteElement, PointWrapper};
@@ -166,5 +204,49 @@ mod point_finite_field_test {
             PointWrapper::new(x, y, a.clone(), b.clone());
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_mul_binary_expansion() {
+        let prime = 223;
+        let a = FiniteElement::new(0, prime).unwrap();
+        let b = FiniteElement::new(7, prime).unwrap();
+        let p5 = PointWrapper::new(
+            FiniteElement::new(15, prime).unwrap(),
+            FiniteElement::new(86, prime).unwrap(),
+            a.clone(),
+            b.clone(),
+        );
+        assert_eq!(PointWrapper::new_inf(), 7 * p5);
+
+        let p5 = PointWrapper::new(
+            FiniteElement::new(47, prime).unwrap(),
+            FiniteElement::new(71, prime).unwrap(),
+            a.clone(),
+            b.clone(),
+        );
+        let res8 = PointWrapper::new(
+            FiniteElement::new(116, prime).unwrap(),
+            FiniteElement::new(55, prime).unwrap(),
+            a.clone(),
+            b.clone(),
+        );
+
+        let res4 = PointWrapper::new(
+            FiniteElement::new(194, prime).unwrap(),
+            FiniteElement::new(51, prime).unwrap(),
+            a.clone(),
+            b.clone(),
+        );
+
+        let res2 = PointWrapper::new(
+            FiniteElement::new(36, prime).unwrap(),
+            FiniteElement::new(111, prime).unwrap(),
+            a.clone(),
+            b.clone(),
+        );
+        assert_eq!(res2, 2 * p5.clone());
+        assert_eq!(res4, 4 * p5.clone());
+        assert_eq!(res8, 8 * p5.clone());
     }
 }
