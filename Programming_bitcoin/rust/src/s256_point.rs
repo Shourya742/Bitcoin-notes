@@ -118,12 +118,7 @@ impl S256Point {
 impl Mul<S256Point> for BigInt {
     type Output = PointWrapper<FiniteElement>;
     fn mul(self, rhs: S256Point) -> Self::Output {
-        let n = BigInt::parse_bytes(
-            b"fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
-            16,
-        )
-        .unwrap();
-        let coef = self.modpow(&BigInt::from(1), &n);
+        let coef = self.modpow(&BigInt::from(1), &N);
         coef * rhs.point
     }
 }
