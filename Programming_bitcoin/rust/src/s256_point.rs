@@ -128,7 +128,8 @@ mod secp256k1_test {
     use num_bigint::BigInt;
 
     use crate::{
-        private_key::PrivateKey, signature::Signature, PointWrapper, S256Field, S256Point, G, N,
+        private_key::PrivateKey, signature::Signature, utils, PointWrapper, S256Field, S256Point,
+        G, N,
     };
     use hex_literal::hex;
     use sha2::{Digest, Sha256};
