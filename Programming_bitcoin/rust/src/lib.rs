@@ -3,6 +3,7 @@ pub mod finite_field_point;
 pub mod private_key;
 pub mod real_numbers_point;
 pub mod signature;
+pub mod utils;
 use finite_field::FiniteElement;
 use num_bigint::BigInt;
 use once_cell::sync::Lazy;
