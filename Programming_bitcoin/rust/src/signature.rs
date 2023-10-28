@@ -1,5 +1,5 @@
 use num_bigint::BigInt;
-use std::{fmt::Display, result};
+use std::{fmt::Display};
 
 pub struct Signature {
     pub r: BigInt,

@@ -6,6 +6,8 @@ pub mod s256_field;
 pub mod s256_point;
 pub mod signature;
 pub mod utils;
+pub mod tx;
+pub mod script;
 
 use num_bigint::BigInt;
 use once_cell::sync::Lazy;

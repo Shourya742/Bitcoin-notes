@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use num_bigint::BigInt;
 use num_integer::Integer;
 use ripemd::Ripemd160;
@@ -42,16 +44,68 @@ pub fn hash160(s: &[u8]) -> Vec<u8> {
 }
 
 pub fn little_endian_to_int(s: &[u8]) -> BigInt {
-    BigInt::from_signed_bytes_le(s)
+    BigInt::from_bytes_le(num_bigint::Sign::Plus,s)
 }
 
-pub fn int_to_little_endian(s: BigInt) -> Vec<u8> {
-    s.to_signed_bytes_le()
+pub fn int_to_little_endian(s: BigInt,limit:u64) -> Vec<u8> {
+    let num = s.to_signed_bytes_le();
+    let mut buffer = vec![0;limit.try_into().unwrap()];
+    let mut handle = num.take(limit);
+    handle.read(&mut buffer).unwrap();
+    buffer.to_vec()
+}
+
+pub fn usize_to_little_endian(s:usize,limit:u64)->Vec<u8>{
+    let num = s.to_le_bytes();
+    let mut buffer = vec![0,limit.try_into().unwrap()];
+    let mut handle = num.take(limit);
+    handle.read(&mut buffer).unwrap();
+    buffer.to_vec()
+}
+
+pub fn read_varint<R:Read> (stream:&mut R)->BigInt{
+    let mut buffer = [0;1];
+    stream.read_exact(&mut buffer).unwrap();
+    if buffer[0] == 0xfd {
+        let mut buffer=[0;2];
+        stream.read_exact(&mut buffer).unwrap();
+        little_endian_to_int(&buffer)
+    } else if buffer[0] == 0xfe {
+        let mut buffer=[0;4];
+        stream.read_exact(&mut buffer).unwrap();
+        little_endian_to_int(&buffer)
+    } else if buffer[0] == 0xff {
+        let mut buffer =[0;8];
+        stream.read_exact(&mut buffer).unwrap();
+        little_endian_to_int(&buffer)
+    } else{
+        little_endian_to_int(&buffer)
+    }
+}
+
+pub fn encode_varint(val:usize)->Vec<u8> {
+    if val < 0xfd {
+        usize_to_little_endian(val, 1)
+    } else if  val < 0x10000 {
+        let mut res = vec![b'\xfd'];
+        res.append(&mut usize_to_little_endian(val,2));
+        res
+    } else if val < 0x100000000 {
+        let mut res = vec![b'\xfe'];
+        res.append(&mut usize_to_little_endian(val,4));
+        res 
+    } else if BigInt::from(val) < BigInt::from(0x10000000000000000_i128) {
+        let mut res = vec![b'\xff'];
+        res.append(&mut usize_to_little_endian(val,8));
+        res 
+    } else {
+        panic!("Integer too large:{}",val)
+    }
 }
 
 #[cfg(test)]
 mod utils_tests {
-    use super::encode_base58;
+    use super::{encode_base58, encode_varint};
 
     #[test]
     fn base58_test() {
@@ -70,5 +124,11 @@ mod utils_tests {
         let hex = &b"\0\0\0\0abc"[..];
         let base58 = encode_base58(hex);
         assert_eq!(base58, "1111ZiCa");
+    }
+
+    #[test]
+    fn encode_varint_test(){
+        let res = encode_varint(107);
+        assert_eq!(hex::encode(res),"6b")
     }
 }
