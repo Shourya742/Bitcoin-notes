@@ -2,6 +2,8 @@ use std::{fmt::{Display, self},io::Read};
 
 use num_bigint::BigInt;
 
+use byteorder::{BigEndian, ByteOrder};
+
 use crate::{
     script::Script,
     tx_fetcher::{TxFetcher},
@@ -48,12 +50,14 @@ impl Tx {
         let mut handle = stream.take(4);
         handle.read(&mut buffer).unwrap();
         let version = utils::little_endian_to_int(&buffer);
-        let num_inputs = utils::read_varint(stream).to_u32_digits().1.pop().unwrap();
+        let num_inputs_buf = utils::read_varint(stream).to_signed_bytes_be();
+        let num_inputs = BigEndian::read_uint(&num_inputs_buf, num_inputs_buf.len()) ;
         let mut inputs: Vec<TxIn> = Vec::new();
         for _ in 0..num_inputs {
             inputs.push(TxIn::parse(stream))
         }
-        let num_outputs = utils::read_varint(stream).to_u32_digits().1.pop().unwrap();
+        let num_outputs_buf = utils::read_varint(stream).to_signed_bytes_be();
+        let num_outputs = BigEndian::read_uint(&num_outputs_buf, num_outputs_buf.len()) ;
         let mut outputs: Vec<TxOut> = Vec::new();
         for _ in 0..num_outputs {
             outputs.push(TxOut::parse(stream))
@@ -136,13 +140,15 @@ impl TxIn {
 
     pub fn value(&self,testnet:bool)->BigInt {
         let tx = self.fetch_tx(testnet);
-        let index = self.prev_index.to_u32_digits().1.pop().unwrap() as usize;
+        let index_buf = self.prev_index.to_signed_bytes_be();
+        let index = BigEndian::read_int(&index_buf, index_buf.len()) as usize;
         tx.tx_outs[index].amount.clone()
     }
 
     pub fn script_pubkey(&self,testnet:bool)->Script {
         let tx = self.fetch_tx(testnet);
-        let index = self.prev_index.to_u32_digits().1.pop().unwrap() as usize;
+        let index_buf = self.prev_index.to_signed_bytes_be();
+        let index = BigEndian::read_int(&index_buf, index_buf.len()) as usize;
         tx.tx_outs[index].script_pubkey.clone()
     }
 }

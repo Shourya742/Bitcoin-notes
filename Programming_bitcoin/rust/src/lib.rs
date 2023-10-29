@@ -9,6 +9,7 @@ pub mod utils;
 pub mod tx;
 pub mod script;
 pub mod tx_fetcher;
+pub mod op;
 
 use num_bigint::BigInt;
 use once_cell::sync::Lazy;

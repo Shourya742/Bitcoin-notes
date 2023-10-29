@@ -103,6 +103,22 @@ pub fn encode_varint(val:usize)->Vec<u8> {
     }
 }
 
+pub fn u32_to_little_endian(s:u32,limit:u64)->Vec<u8>{
+    let i = s.to_le_bytes();
+    let mut buffer = vec![0;limit.try_into().unwrap()];
+    let mut handle = i.take(limit);
+    handle.read(&mut buffer).unwrap();
+    buffer.to_vec()
+}
+
+pub fn i32_to_little_endian(s:i32,limit:u64)->Vec<u8>{
+    let i = s.to_le_bytes();
+    let mut buffer = vec![0;limit.try_into().unwrap()];
+    let mut handle = i.take(limit);
+    handle.read(&mut buffer).unwrap();
+    buffer.to_vec()
+}
+
 #[cfg(test)]
 mod utils_tests {
     use super::{encode_base58, encode_varint};
