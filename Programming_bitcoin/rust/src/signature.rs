@@ -2,10 +2,20 @@ use num_bigint::BigInt;
 use std::{fmt::Display, io::{Read, Seek}};
 
 use byteorder::{BigEndian,ByteOrder};
+use crate::utils;
 
 pub struct Signature {
     pub r: BigInt,
     pub s: BigInt,
+}
+
+
+pub struct SignatureHash(BigInt);
+
+impl AsRef<BigInt> for SignatureHash {
+    fn as_ref(&self) -> &BigInt {
+        &self.0
+    }
 }
 
 impl Signature {
@@ -83,6 +93,16 @@ impl Signature {
         stream.read_exact(&mut s_buffer).unwrap();
         let s = BigInt::from_signed_bytes_be(&s_buffer);
         Signature { r, s }
+    }
+    pub fn signature_hash(passphrase: &str) -> SignatureHash {
+        SignatureHash(BigInt::from_bytes_be(
+            num_bigint::Sign::Plus,
+            &utils::hash256(passphrase.as_bytes()),
+        ))
+    }
+
+    pub fn signature_hash_from_hex(passphrase: &str) -> SignatureHash {
+        SignatureHash(BigInt::parse_bytes(passphrase.as_bytes(), 16).unwrap())
     }
 }
 
