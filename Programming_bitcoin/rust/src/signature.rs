@@ -1,14 +1,12 @@
+use std::{
+    fmt::Display,
+    io::{Read, Seek},
+};
+
+use byteorder::{BigEndian, ByteOrder};
 use num_bigint::BigInt;
-use std::{fmt::Display, io::{Read, Seek}};
 
-use byteorder::{BigEndian,ByteOrder};
 use crate::utils;
-
-pub struct Signature {
-    pub r: BigInt,
-    pub s: BigInt,
-}
-
 
 pub struct SignatureHash(BigInt);
 
@@ -18,45 +16,17 @@ impl AsRef<BigInt> for SignatureHash {
     }
 }
 
+pub struct Signature {
+    pub r: BigInt,
+    pub s: BigInt,
+}
+
 impl Signature {
     pub fn new(r: BigInt, s: BigInt) -> Self {
         Signature { r, s }
     }
 
-    pub fn der(&self) -> Vec<u8> {
-        let mut result: Vec<u8> = Vec::new();
-        let mut rbin = &self.r.to_bytes_be().1.to_vec()[0..32];
-        let mut v: Vec<u8> = Vec::new();
-        v.extend_from_slice(rbin.strip_prefix(b"\x00").unwrap_or(rbin));
-        if rbin[0] & 0x80 == 1 {
-            let maker = &b"\x00"[0..1];
-            v.clear();
-            v.extend_from_slice(&[maker, rbin.clone()].concat()[..]);
-        }
-        rbin = v.as_slice();
-        result.push(0x2);
-        result.push(*rbin.len().to_be_bytes().last().unwrap());
-        result.extend_from_slice(rbin);
-        v.clear();
-        let mut sbin = &self.s.to_bytes_be().1.to_vec()[0..32];
-        v.extend_from_slice(sbin.strip_prefix(b"\x00").unwrap_or(sbin));
-        if sbin[0] & 0x80 != 0 {
-            let marker = &b"\x00"[0..1];
-            v.clear();
-            v.extend_from_slice(&[marker, sbin.clone()].concat()[..]);
-        }
-        sbin = v.as_slice();
-        result.push(2);
-        result.push(*sbin.len().to_be_bytes().last().unwrap());
-        result.extend_from_slice(sbin);
-        let mut final_r = Vec::new();
-        final_r.push(0x30);
-        final_r.push(*result.len().to_be_bytes().last().unwrap());
-        final_r.extend_from_slice(&result);
-        final_r
-    }
-
-    pub fn parse<R:Read+Seek>(stream:&mut R)->Self{
+    pub fn parse<R: Read + Seek>(stream: &mut R) -> Self {
         let mut compound_buffer = [0; 1];
         stream.read_exact(&mut compound_buffer).unwrap();
         let compound = compound_buffer[0];
@@ -65,11 +35,8 @@ impl Signature {
         }
         let mut length_buffer = [0; 1];
         stream.read_exact(&mut length_buffer).unwrap();
-        let length = (BigEndian::read_u32(&[0, 0, 0, length_buffer[0]]) + 2) as u64;
+        let length = (BigEndian::read_u32(&[0, 0, 0, length_buffer[0]]) + 2) as u32;
         // let len = stream.stream_len().unwrap();
-        // if length != len {
-        //     panic!("Bad signature length")
-        // }
         let mut marker_buffer = [0; 1];
         stream.read_exact(&mut marker_buffer).unwrap();
         if marker_buffer[0] != 0x02 {
@@ -89,11 +56,57 @@ impl Signature {
         let mut slength_buffer = [0; 1];
         stream.read_exact(&mut slength_buffer).unwrap();
         let slenght = BigEndian::read_u32(&[0, 0, 0, slength_buffer[0]]);
+
+        // 4 -> marker + len
+        // 2 -> compound and total len
+        if slenght + rlenght + 4 + 2 != length {
+            panic!("Bad signature length")
+        }
+
         let mut s_buffer = vec![0; slenght.try_into().unwrap()];
         stream.read_exact(&mut s_buffer).unwrap();
         let s = BigInt::from_signed_bytes_be(&s_buffer);
         Signature { r, s }
     }
+
+    pub fn der(&self) -> Vec<u8> {
+        let mut result: Vec<u8> = Vec::new();
+        {
+            let mut rbin = &self.r.to_bytes_be().1.to_vec()[0..32];
+            let mut v = Vec::new();
+            v.extend_from_slice(rbin.strip_prefix(b"\x00").unwrap_or(rbin));
+            if rbin[0] & 0x80 == 1 {
+                let marker = &b"\x00"[0..1];
+                v.clear();
+                v.extend_from_slice(&[marker, rbin.clone()].concat()[..]);
+            }
+            rbin = v.as_slice();
+            result.push(0x2);
+            //extend_from_slice(&vec![&b"\x02"[0..1], rbin.len().to_be_bytes().last().unwrap(), rbin].concat());
+            result.push(*rbin.len().to_be_bytes().last().unwrap());
+            result.extend_from_slice(rbin);
+        }
+        {
+            let mut sbin = &self.s.to_bytes_be().1.to_vec()[0..32];
+            let mut v = Vec::new();
+            v.extend_from_slice(sbin.strip_prefix(b"\x00").unwrap_or(sbin));
+            if sbin[0] & 0x80 != 0 {
+                let marker = &b"\x00"[0..1];
+                v.clear();
+                v.extend_from_slice(&[marker, sbin.clone()].concat()[..]);
+            }
+            sbin = v.as_slice();
+            result.push(2); //.extend_from_slice(&vec![&b"\x02"[0..1], &sbin.len().to_be_bytes(), sbin].concat());
+            result.push(*sbin.len().to_be_bytes().last().unwrap());
+            result.extend_from_slice(sbin)
+        }
+        let mut final_r: Vec<u8> = Vec::new();
+        final_r.push(0x30);
+        final_r.push(*result.len().to_be_bytes().last().unwrap());
+        final_r.extend_from_slice(&result);
+        final_r
+    }
+
     pub fn signature_hash(passphrase: &str) -> SignatureHash {
         SignatureHash(BigInt::from_bytes_be(
             num_bigint::Sign::Plus,
@@ -104,16 +117,20 @@ impl Signature {
     pub fn signature_hash_from_hex(passphrase: &str) -> SignatureHash {
         SignatureHash(BigInt::parse_bytes(passphrase.as_bytes(), 16).unwrap())
     }
+
+    pub fn signature_hash_from_vec(passphrase: Vec<u8>) -> SignatureHash {
+        SignatureHash(BigInt::from_signed_bytes_be(&passphrase))
+    }
 }
 
 impl Display for Signature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Signature({:x},{:x})", self.r, self.s)
+        write!(f, "Signature({:x}, {:x})", self.r, self.s)
     }
 }
 
 #[cfg(test)]
-mod signature_test {
+mod signature_tests {
     use std::io::Cursor;
 
     use num_bigint::BigInt;
@@ -128,7 +145,6 @@ mod signature_test {
             16,
         )
         .unwrap();
-        println!("{:?}", r);
         let s: BigInt = BigInt::parse_bytes(
             b"8ca63759c1157ebeaec0d03cecca119fc9a75bf8e6d0fa65c841c8e2738cdaec",
             16,

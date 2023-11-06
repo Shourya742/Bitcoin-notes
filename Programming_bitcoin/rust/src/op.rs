@@ -2,9 +2,13 @@ use std::io::Cursor;
 
 use byteorder::{BigEndian, ByteOrder};
 use crypto::{digest::Digest, sha1::Sha1};
-use num_bigint::BigInt;
 
-use crate::{s256_point::S256Point, script::Command, signature::Signature, utils};
+use crate::{
+    s256_point::S256Point,
+    script::Command,
+    signature::{Signature, SignatureHash},
+    utils,
+};
 
 #[derive(Debug, Clone)]
 pub enum OpCodeFunctions {
@@ -24,6 +28,7 @@ pub enum OpCodeFunctions {
     OpSwap(u32),
     OpNot(u32),
     OpSha1(u32),
+    OpSigHashAll(u32),
 }
 
 impl OpCodeFunctions {
@@ -58,6 +63,10 @@ impl OpCodeFunctions {
     pub fn op_verify() -> Self {
         OpCodeFunctions::OpVerify(105)
     }
+
+    pub fn op_sig_hash_all() -> Self {
+        OpCodeFunctions::OpSigHashAll(1)
+    }
 }
 
 impl AsRef<u32> for OpCodeFunctions {
@@ -79,6 +88,7 @@ impl AsRef<u32> for OpCodeFunctions {
             OpCodeFunctions::OpSwap(op) => op,
             OpCodeFunctions::OpNot(op) => op,
             OpCodeFunctions::OpSha1(op) => op,
+            OpCodeFunctions::OpSigHashAll(op) => op,
         }
     }
 }
@@ -110,7 +120,7 @@ pub fn operation(
     stack: &mut Vec<Vec<u8>>,
     cmds: &mut Vec<Command>,
     altstack: &mut Vec<Vec<u8>>,
-    z: &BigInt,
+    z: &SignatureHash,
 ) -> bool {
     match op_code {
         OpCodeFunctions::Op0(_) => {
@@ -126,7 +136,7 @@ pub fn operation(
                 let mut der_signature_cursor = Cursor::new(der_signature);
                 let point = S256Point::parse(&sec_pubkey);
                 let sig = Signature::parse(&mut der_signature_cursor);
-                if point.verify(z.clone(), sig) {
+                if point.verify(z, sig) {
                     stack.push(encode_num(1))
                 } else {
                     stack.push(encode_num(0))
@@ -248,10 +258,11 @@ pub fn operation(
             stack.push(out.to_vec());
             return true;
         }
+        OpCodeFunctions::OpSigHashAll(_) => todo!(),
     }
 }
 
-fn encode_num(num: i32) -> Vec<u8> {
+pub fn encode_num(num: i32) -> Vec<u8> {
     if num == 0 {
         return b"".to_vec();
     }
