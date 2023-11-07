@@ -5,7 +5,7 @@ use crate::{
     utils, PointWrapper, S256Point, G, N,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrivateKey {
     pub secret: BigInt,
     pub point: S256Point,
