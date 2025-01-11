@@ -2,18 +2,19 @@ use std::fmt::Display;
 
 use num_bigint::BigInt;
 
-use crate::{finite_field::FiniteElement, P};
+use crate::{finite_field::FiniteField, P};
+use anyhow::Result;
 
 #[derive(Debug, Clone)]
 pub struct S256Field {
-    pub field: FiniteElement,
+    pub field: FiniteField,
 }
 
 impl S256Field {
-    pub fn new(num: BigInt) -> S256Field {
-        S256Field {
-            field: FiniteElement::new_big_int(num, P.to_owned()).unwrap(),
-        }
+    pub fn new(num: BigInt) -> Result<S256Field> {
+        Ok(S256Field {
+            field: FiniteField::new_big_int(num, P.to_owned())?,
+        })
     }
 
     pub fn sqrt(self) -> Self {

@@ -2,6 +2,7 @@ use std::{fmt, ops::Add};
 
 use crate::PointWrapper;
 
+//https://www.desmos.com/calculator/ialhd71we3
 impl crate::PointWrapper<i32> {
     pub fn new_old(x: i32, y: i32, a: i32, b: i32) -> PointWrapper<i32> {
         if y.pow(2) != (x.pow(3) + a * x + b) {
@@ -49,8 +50,13 @@ impl fmt::Display for PointWrapper<i32> {
             PointWrapper::Inf => {
                 write!(f, "infinity")
             }
-            PointWrapper::Point { x, y, a, b } => {
-                write!(f, "Point({:?},{:?})_{}_{}", x, y, a, b)
+            PointWrapper::Point {
+                x: x1,
+                y: y1,
+                a: a1,
+                b: b1,
+            } => {
+                write!(f, "Point({:?}, {:?})_{}_{}", x1, y1, a1, b1)
             }
         }
     }
@@ -58,6 +64,7 @@ impl fmt::Display for PointWrapper<i32> {
 
 impl Add for PointWrapper<i32> {
     type Output = Self;
+
     fn add(self, other: Self) -> Self::Output {
         match (self, other) {
             (PointWrapper::Inf, PointWrapper::Inf) => PointWrapper::Inf,
@@ -78,7 +85,11 @@ impl Add for PointWrapper<i32> {
                 },
             ) => {
                 if a1 != a2 || b1 != b2 {
-                    panic!("Points {},{} are not on the same curve", p1, p2)
+                    panic!("Points {}, {} are not on the same curve", p1, p2)
+                }
+
+                if x1 == x2 && y1 != y2 {
+                    return PointWrapper::Inf;
                 } else if x1 != x2 {
                     let s = (y2 - y1) / (x2 - x1);
                     let x = s.pow(2) - x1 - x2;
@@ -87,7 +98,7 @@ impl Add for PointWrapper<i32> {
                 } else if p1 == p2 && y1 == 0 {
                     PointWrapper::Inf
                 } else if p1 == p2 {
-                    let s = (3 * x1.pow(2) + a1) / (2 * y1);
+                    let s: i32 = (3 * x1.pow(2) + a1) / (2 * y1);
                     let x = s.pow(2) - 2 * x1;
                     let y = s * (x1 - x) - y1;
                     return PointWrapper::Point { x, y, a: a1, b: b1 };
